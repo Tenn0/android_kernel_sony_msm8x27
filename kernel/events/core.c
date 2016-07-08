@@ -153,8 +153,13 @@ static struct srcu_struct pmus_srcu;
  *   0 - disallow raw tracepoint access for unpriv
  *   1 - disallow cpu events for unpriv
  *   2 - disallow kernel profiling for unpriv
+ *   3 - disallow all unpriv perf event use
  */
+#ifdef CONFIG_SECURITY_PERF_EVENTS_RESTRICT
+int sysctl_perf_event_paranoid __read_mostly = 3;
+#else
 int sysctl_perf_event_paranoid __read_mostly = 1;
+#endif
 
 /* Minimum for 512 kiB + 1 user control page */
 int sysctl_perf_event_mlock __read_mostly = 512 + (PAGE_SIZE / 1024); /* 'free' kiB per user */
@@ -2958,14 +2963,6 @@ static int perf_release(struct inode *inode, struct file *file)
 {
 	struct perf_event *event = file->private_data;
 	struct task_struct *owner;
-
-	/*
-	 * Event can be in state OFF because of a constraint check.
-	 * Change to ACTIVE so that it gets cleaned up correctly.
-	 */
-	if ((event->state == PERF_EVENT_STATE_OFF) &&
-	    event->attr.constraint_duplicate)
-		event->state = PERF_EVENT_STATE_ACTIVE;
 
 	file->private_data = NULL;
 
@@ -6239,6 +6236,9 @@ SYSCALL_DEFINE5(perf_event_open,
 	/* for future expandability... */
 	if (flags & ~PERF_FLAG_ALL)
 		return -EINVAL;
+
+	if (perf_paranoid_any() && !capable(CAP_SYS_ADMIN))
+		return -EACCES;
 
 	err = perf_copy_attr(attr_uptr, &attr);
 	if (err)
