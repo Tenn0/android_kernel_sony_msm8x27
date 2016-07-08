@@ -254,8 +254,13 @@ static int msm_mctl_add_intf_to_mctl_map(
 
 	mctl_handle = msm_cam_find_handle_from_mctl_ptr(p_mctl);
 	if (mctl_handle == 0) {
-		pr_err("%s Error in finding handle from mctl_ptr, rc = %d",
-			__func__, rc);
+		pr_err("%s Error in finding handle from mctl_ptr",
+				__func__);
+		return -EFAULT;
+	}
+	if (intf_map->num_entries > MSM_V4L2_EXT_CAPTURE_MODE_MAX) {
+		pr_err("%s Error num_entries exceeds max %d",
+				__func__, intf_map->num_entries);
 		return -EFAULT;
 	}
 	for (i = 0; i < intf_map->num_entries; i++) {
@@ -1092,12 +1097,20 @@ static int msm_mctl_v4l2_s_ctrl(struct file *f, void *pctx,
 			pr_err("%s inst %p Copying plane_info failed ",
 					__func__, pcam_inst);
 			rc = -EFAULT;
+		} else if (pcam_inst->plane_info.num_planes
+				> VIDEO_MAX_PLANES) {
+			pr_err("%s: inst %p got invalid num_planes (%d)",
+					__func__, pcam_inst,
+					pcam_inst->plane_info.num_planes);
+			rc = -EINVAL;
 		}
+
 		D("%s inst %p got plane info: num_planes = %d," \
 				"plane size = %ld %ld ", __func__, pcam_inst,
 				pcam_inst->plane_info.num_planes,
 				pcam_inst->plane_info.plane[0].size,
 				pcam_inst->plane_info.plane[1].size);
+
 	} else if (ctrl->id == MSM_V4L2_PID_AVTIMER){
 		pcam_inst->avtimerOn = ctrl->value;
 		D("%s: mmap_inst=(0x%p, %d) AVTimer=%d\n",

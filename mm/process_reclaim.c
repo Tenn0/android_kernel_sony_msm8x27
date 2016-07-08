@@ -201,7 +201,7 @@ static void swap_fn(struct work_struct *work)
 
 		if (efficiency < swap_opt_eff) {
 			if (++monitor_eff == swap_eff_win) {
-				atomic_set(&skip_reclaim, swap_eff_win + 1);
+				atomic_set(&skip_reclaim, swap_eff_win);
 				monitor_eff = 0;
 			}
 		} else {
@@ -225,11 +225,12 @@ static int vmpressure_notifier(struct notifier_block *nb,
 	if (!current_is_kswapd())
 		return 0;
 
-	if (!atomic_dec_and_test(&skip_reclaim))
+	if (0 <= atomic_dec_if_positive(&skip_reclaim))
 		return 0;
 
 	if ((pressure >= pressure_min) && (pressure < pressure_max))
-		queue_work(system_unbound_wq, &swap_work);
+		if (!work_pending(&swap_work))
+			queue_work(system_unbound_wq, &swap_work);
 	return 0;
 }
 
